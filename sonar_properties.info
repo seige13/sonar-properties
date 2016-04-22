@@ -1,0 +1,6 @@
+name = Sonar Properties
+description = Sonar Properties file reader
+core = 7.x
+version = 1.0
+
+configure = admin/config/sonarproperties/settings

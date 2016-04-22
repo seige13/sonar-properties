@@ -1,0 +1,370 @@
+<?php
+/**
+ * @file
+ * A description of what your module does.
+ */
+
+/**
+ * Implements hook_menu()
+ */
+function sonar_properties_menu() {
+
+  $items = array();
+
+  $items['sonarproperties'] = array(
+    'title'            => t('Sonar Properties File Reader'),
+    'description'      => t('Sonar Properties File Reader'),
+    'access arguments' => array('access content'),
+    'type'             => MENU_CALLBACK
+  );
+
+  $items['admin/config/sonarproperties'] = array(
+    'title'            => 'Sonar Properties',
+    'description'      => 'Sonar Properties file configuration',
+    'access arguments' => array('access content'),
+  );
+
+  $items['admin/config/sonarproperties/settings'] = array(
+    'title'            => 'Sonar Properties',
+    'description'      => 'Configuration for Sonar Properties File module',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('sonar_properties_form'),
+    'access arguments' => array('administer site configuration'),
+    'type'             => MENU_NORMAL_ITEM,
+  );
+
+  $items['admin/config/sonarproperties/run'] = array(
+    'title'            => 'Run SonarQube',
+    'description'      => 'Run SonarQube from here',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('sonar_run_form'),
+    'access arguments' => array('administer site configuration'),
+    'type'             => MENU_NORMAL_ITEM,
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_form()
+ */
+function sonar_properties_form($node, &$form_state) {
+
+  $form['sonar_host']      = array(
+    '#type'          => 'textfield',
+    '#title'         => t('Sonar Host'),
+    '#default_value' => variable_get('sonar_server_host', 'http://sonarqube.as-crdbi-dev.com'),
+    '#description'   => t('Default SonarQube Server'),
+    '#required'      => TRUE,
+  );
+  $form['source_encoding'] = array(
+    '#type'          => 'textfield',
+    '#title'         => t('Source Encoding'),
+    '#default_value' => variable_get('sonar_source_encoding', 'UTF-8'),
+    '#description'   => t('Default source code encoding'),
+    '#required'      => TRUE,
+  );
+  $form['project_key']     = array(
+    '#type'          => 'textfield',
+    '#title'         => t('Project Key'),
+    '#default_value' => variable_get('sonar_project_key', 'Health-Partner-For-Knees-MS:Drupal'),
+    '#description'   => t('The server to be hit for config'),
+    '#required'      => TRUE,
+  );
+  $form['project_name']    = array(
+    '#type'          => 'textfield',
+    '#title'         => t('Project Name'),
+    '#default_value' => variable_get('sonar_project_name', 'Health Partner for Knees MS - Drupal'),
+    '#description'   => t('This is the name displayed in the SonarQube UI'),
+    '#required'      => TRUE,
+  );
+
+  $form['project_base_dir'] = array(
+    '#type'          => 'textfield',
+    '#title'         => t('Project Base Directory'),
+    '#default_value' => variable_get('sonar_base_dir', '/var/www/html/drupal'),
+    '#description'   => t('Absolute path to the project\'s root directory'),
+    '#required'      => TRUE,
+  );
+
+  $form['project_version']     = array(
+    '#type'          => 'textfield',
+    '#title'         => t('Project Version'),
+    '#default_value' => variable_get('sonar_project_version', '1.0'),
+    '#description'   => t('Project Version'),
+    '#required'      => TRUE,
+  );
+  $form['project_sources']     = array(
+    '#type'          => 'textfield',
+    '#title'         => t('Project Sources'),
+    '#default_value' => variable_get('sonar_project_sources', 'modules/custom'),
+    '#description'   => t('Comma separated paths relative to the sonar-project.properties file. ' .
+      'Replace "\" by "/" on Windows. Since SonarQube 4.2, this property is optional if sonar.modules is set. ' .
+      'If not set, SonarQube starts looking for source code from the directory containing the sonar-project.properties file.'),
+    '#required'      => TRUE,
+  );
+  $form['project_exclusions']  = array(
+    '#type'          => 'textfield',
+    '#title'         => t('Project Exclusion'),
+    '#default_value' => variable_get('sonar_project_exclusions', 'vendor/**'),
+    '#description'   => t('A Comma seperated list of directories to be excluded from the scan'),
+    '#required'      => TRUE,
+  );
+  $form['project_profile']     = array(
+    '#type'          => 'textfield',
+    '#title'         => t('Project Profile'),
+    '#default_value' => variable_get('sonar_project_profile', 'Drupal'),
+    '#description'   => t('Project Profile on SonarQube'),
+    '#required'      => TRUE,
+  );
+  $form['properties_location'] = array(
+    '#type'          => 'textfield',
+    '#title'         => t('Sonar Properties File Location'),
+    '#default_value' => variable_get('sonar_properties_location', '/'),
+    '#description'   => t('Absolute path to Sonar Properties File Location'),
+    '#required'      => TRUE,
+  );
+
+  $form['sonar_runner_location'] = array(
+    '#type'          => 'textfield',
+    '#title'         => t('Sonar Runner Location'),
+    '#default_value' => variable_get('sonar_runner_location', '/'),
+    '#description'   => t('Absolute path to Sonar Runner Location Location'),
+    '#required'      => TRUE,
+  );
+
+
+  $form['#submit'] = array('sonar_properties_submit');
+
+  return system_settings_form($form);
+}
+
+function sonar_run_form($node, &$form_state) {
+
+  $form['sonar_version_increment'] = array(
+    '#type'          => 'textfield',
+    '#title'         => t('Sonar Version Increment'),
+    '#default_value' => variable_get('sonar_version_increment', '0.1'),
+    '#description'   => t('The value to increment the Sonar Properties version'),
+    '#required'      => TRUE,
+  );
+
+  $form['submit'] = array(
+    '#type'  => 'submit',
+    '#value' => 'Run',
+  );
+
+  return $form;
+}
+
+function sonar_run_form_submit($form, &$form_state){
+  // Form above was submitted, now lets clean up $form_state['values'],
+  // that's the submitted values in an associative array.
+  form_state_values_clean($form_state);
+  // And here is the value that was submitted:
+  drupal_set_message('test');
+}
+
+
+/**
+ * @param $form
+ * @param $form_state
+ */
+function sonar_properties_submit($form, &$form_state) {
+  $form_state['rebuild']     = TRUE;
+  $sonar_properties_location = variable_get('sonar_properties_location');
+  if (file_exists($sonar_properties_location)) {
+
+    variable_set('sonar_properties_location', $sonar_properties_location);
+    variable_set('sonar_server_host', $form_state['values']['sonar_host']);
+    variable_set('sonar_source_encoding', $form_state['values']['source_encoding']);
+    variable_set('sonar_project_key', $form_state['values']['project_key']);
+    variable_set('sonar_project_name', $form_state['values']['project_name']);
+    variable_set('sonar_project_version', $form_state['values']['project_version']);
+    variable_set('sonar_project_sources', $form_state['values']['project_sources']);
+    variable_set('sonar_project_exclusions', $form_state['values']['project_exclusions']);
+    variable_set('sonar_project_profile', $form_state['values']['project_profile']);
+    variable_set('sonar_base_dir', $form_state['values']['project_base_dir']);
+    variable_set('sonar_runner_location', $form_state['values']['sonar_runner_location']);
+    write_properties_file($form_state['values']);
+  }
+  else {
+    drupal_set_message(sprintf("The file %s is not writable.", $sonar_properties_location), 'error');
+  }
+}
+
+/**
+ * Implements hook_enable().
+ */
+function sonar_properties_enable() {
+  $sonar_properties_location = getcwd() . '/' . drupal_get_path('module', 'sonar_properties') . '/sonar-project.properties';
+  if (file_exists($sonar_properties_location)) {
+
+    $sonar_properties = parse_properties(file_get_contents($sonar_properties_location));
+    variable_set('sonar_properties_location', $sonar_properties_location);
+    variable_set('sonar_server_host', $sonar_properties['sonar.host.url']);
+    variable_set('sonar_project_key', $sonar_properties['sonar.projectKey']);
+    variable_set('sonar_project_name', $sonar_properties['sonar.projectName']);
+    variable_set('sonar_project_version', $sonar_properties['sonar.projectVersion']);
+    variable_set('sonar_project_sources', $sonar_properties['sonar.sources']);
+    variable_set('sonar_project_exclusions', $sonar_properties['sonar.exclusions']);
+    variable_set('sonar_project_profile', $sonar_properties['sonar.profile']);
+    variable_set('sonar_base_dir', $sonar_properties['sonar.projectBaseDir']);
+  }
+}
+
+/**
+ * @param String $txtProperties
+ *
+ * @return array
+ */
+function parse_properties($txtProperties) {
+  $result             = array();
+  $lines              = explode("\n", $txtProperties);
+  $key                = "";
+  $isWaitingOtherLine = FALSE;
+  foreach ($lines as $i => $line) {
+    if (empty($line) || (!$isWaitingOtherLine && strpos($line, "#") === 0)) {
+      continue;
+    }
+
+    $value = '';
+    if (!$isWaitingOtherLine) {
+      $key   = substr($line, 0, strpos($line, '='));
+      $value = substr($line, strpos($line, '=') + 1, strlen($line));
+    }
+    else {
+      $value .= $line;
+    }
+
+    if (strrpos($value, "\\") === strlen($value) - strlen("\\")) {
+      $value              = substr($value, 0, strlen($value) - 1) . "\n";
+      $isWaitingOtherLine = TRUE;
+    }
+    else {
+      $isWaitingOtherLine = FALSE;
+    }
+
+    $result[$key] = $value;
+    unset($lines[$i]);
+  }
+
+  return $result;
+}
+
+/**
+ * Write Sonar properties to sonar-project.properties
+ *
+ * @param array $properties
+ *
+ * @return Boolean
+ */
+function write_properties_file($properties) {
+  $file = $properties['properties_location'];
+
+  if (is_writable($file)) {
+    $propertiesText = parse_properties_write(file_get_contents($file), $properties);
+
+    if (empty($propertiesText) || trim($propertiesText) == '') {
+      drupal_set_message(sprintf('%s is currently empty', $file), 'error');
+      return FALSE;
+    }
+
+    if (!$handle = fopen($file, 'w')) {
+      drupal_set_message(sprintf("Cannot open file (%s)", $file), 'error');
+      return FALSE;
+    }
+
+    if (fwrite($handle, $propertiesText) === FALSE) {
+      drupal_set_message(sprintf("Cannot write to file: %s", $file), 'error');
+      return FALSE;
+    }
+
+    drupal_set_message(sprintf("Success, wrote to file %s", $file));
+
+    fclose($handle);
+
+    return TRUE;
+
+  }
+  else {
+    drupal_set_message(sprintf("The file %s is not writable.", $file), 'error');
+
+    return FALSE;
+  }
+}
+
+/**
+ * @param $txtProperties
+ * @param $form_values
+ *
+ * @return string
+ */
+function parse_properties_write($txtProperties, $form_values) {
+  $lines              = explode("\n", $txtProperties);
+  $key                = "";
+  $isWaitingOtherLine = FALSE;
+  $newText            = '';
+  $lineNumber         = 0;
+  foreach ($lines as $i => $line) {
+    $lineNumber++;
+    //Preserve emtpy or commented lines
+    if (empty($line) || (!$isWaitingOtherLine && strpos($line, "#") === 0) || !strpos($line, "=")) {
+      $newText .= $line . PHP_EOL;
+      continue;
+    }
+
+    $value = '';
+    if (!$isWaitingOtherLine) {
+      $key   = substr($line, 0, strpos($line, '='));
+      $value = substr($line, strpos($line, '=') + 1, strlen($line));
+    }
+    else {
+      $value .= $line;
+    }
+
+    if (strrpos($value, "\\") === strlen($value) - strlen("\\")) {
+      $value              = substr($value, 0, strlen($value) - 1) . "\n";
+      $isWaitingOtherLine = TRUE;
+    }
+    else {
+      $isWaitingOtherLine = FALSE;
+    }
+
+    //rewrite property values
+    switch ($key) {
+      case 'sonar.host.url':
+        $newText .= $key . '=' . $form_values['sonar_host'] . PHP_EOL;
+        break;
+      case 'sonar.sourceEncoding':
+        $newText .= $key . '=' . $form_values['source_encoding'] . PHP_EOL;
+        break;
+      case 'sonar.projectKey':
+        $newText .= $key . '=' . $form_values['project_key'] . PHP_EOL;
+        break;
+      case 'sonar.projectName':
+        $newText .= $key . '=' . $form_values['project_name'] . PHP_EOL;
+        break;
+      case 'sonar.projectVersion':
+        $newText .= $key . '=' . $form_values['project_version'] . PHP_EOL;
+        break;
+      case 'sonar.projectBaseDir':
+        $newText .= $key . '=' . $form_values['project_base_dir'] . PHP_EOL;
+        break;
+      case 'sonar.sources':
+        $newText .= $key . '=' . $form_values['project_sources'] . PHP_EOL;
+        break;
+      case 'sonar.exclusions':
+        $newText .= $key . '=' . $form_values['project_exclusions'] . PHP_EOL;
+        break;
+      case 'sonar.profile':
+        $newText .= $key . '=' . $form_values['project_profile'] . PHP_EOL;
+        break;
+      default:
+        $newText .= $key . '=' . $value . PHP_EOL;
+    }
+
+    unset($lines[$i]);
+  }
+
+  return trim($newText);
+}
