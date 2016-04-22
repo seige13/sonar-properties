@@ -1,7 +1,8 @@
 <?php
 /**
  * @file
- * A description of what your module does.
+ * @author
+ * This module is used for integrate with Sonarqube
  */
 
 /**
@@ -52,7 +53,7 @@ function sonar_properties_form($node, &$form_state) {
   $form['sonar_host']      = array(
     '#type'          => 'textfield',
     '#title'         => t('Sonar Host'),
-    '#default_value' => variable_get('sonar_server_host', 'http://sonarqube.as-crdbi-dev.com'),
+    '#default_value' => variable_get('sonar_server_host', 'http://sonarqube.server.com'),
     '#description'   => t('Default SonarQube Server'),
     '#required'      => TRUE,
   );
@@ -139,6 +140,33 @@ function sonar_properties_form($node, &$form_state) {
 }
 
 /**
+ * @param $form
+ * @param $form_state
+ */
+function sonar_properties_submit($form, &$form_state) {
+  $form_state['rebuild']     = TRUE;
+  $sonar_properties_location = variable_get('sonar_properties_location');
+  if (file_exists($sonar_properties_location)) {
+
+    variable_set('sonar_properties_location', $sonar_properties_location);
+    variable_set('sonar_server_host', $form_state['values']['sonar_host']);
+    variable_set('sonar_source_encoding', $form_state['values']['source_encoding']);
+    variable_set('sonar_project_key', $form_state['values']['project_key']);
+    variable_set('sonar_project_name', $form_state['values']['project_name']);
+    variable_set('sonar_project_version', $form_state['values']['project_version']);
+    variable_set('sonar_project_sources', $form_state['values']['project_sources']);
+    variable_set('sonar_project_exclusions', $form_state['values']['project_exclusions']);
+    variable_set('sonar_project_profile', $form_state['values']['project_profile']);
+    variable_set('sonar_base_dir', $form_state['values']['project_base_dir']);
+    variable_set('sonar_runner_location', $form_state['values']['sonar_runner_location']);
+    write_properties_file($form_state['values']);
+  }
+  else {
+    drupal_set_message(sprintf("The file %s is not writable.", $sonar_properties_location), 'error');
+  }
+}
+
+/**
  *
  * @param $node
  * @param $form_state
@@ -146,16 +174,12 @@ function sonar_properties_form($node, &$form_state) {
  * @return mixed
  */
 function sonar_run_form($node, &$form_state) {
-
-  /*$form['sonar_version_increment'] = array(
-    '#type'          => 'textfield',
-    '#title'         => t('Sonar Version Increment'),
-    '#default_value' => variable_get('sonar_version_increment', '0.1'),
-    '#description'   => t('The value to increment the Sonar Properties version'),
-    '#required'      => TRUE,
-  );*/
-
-  $form['submit'] = array(
+  $form['overview'] = array(
+    '#markup' => t('This will auto increment the project version and run the SonarQube runner command'),
+    '#prefix' => '<p>',
+    '#suffix' => '</p>'
+  );
+  $form['submit']   = array(
     '#type'  => 'submit',
     '#value' => 'Run',
   );
@@ -197,36 +221,9 @@ function sonar_run_form_submit($form, &$form_state) {
 
   write_properties_file($properties);
 
+  // @TODO Add the sonarqube runner command here
 
-  drupal_set_message('Success. SonarQube has been run');
-}
-
-
-/**
- * @param $form
- * @param $form_state
- */
-function sonar_properties_submit($form, &$form_state) {
-  $form_state['rebuild']     = TRUE;
-  $sonar_properties_location = variable_get('sonar_properties_location');
-  if (file_exists($sonar_properties_location)) {
-
-    variable_set('sonar_properties_location', $sonar_properties_location);
-    variable_set('sonar_server_host', $form_state['values']['sonar_host']);
-    variable_set('sonar_source_encoding', $form_state['values']['source_encoding']);
-    variable_set('sonar_project_key', $form_state['values']['project_key']);
-    variable_set('sonar_project_name', $form_state['values']['project_name']);
-    variable_set('sonar_project_version', $form_state['values']['project_version']);
-    variable_set('sonar_project_sources', $form_state['values']['project_sources']);
-    variable_set('sonar_project_exclusions', $form_state['values']['project_exclusions']);
-    variable_set('sonar_project_profile', $form_state['values']['project_profile']);
-    variable_set('sonar_base_dir', $form_state['values']['project_base_dir']);
-    variable_set('sonar_runner_location', $form_state['values']['sonar_runner_location']);
-    write_properties_file($form_state['values']);
-  }
-  else {
-    drupal_set_message(sprintf("The file %s is not writable.", $sonar_properties_location), 'error');
-  }
+  drupal_set_message('Success. SonarQube has been run!');
 }
 
 /**
@@ -250,9 +247,11 @@ function sonar_properties_enable() {
 }
 
 /**
+ * Parse the initial properties file
+ *
  * @param String $txtProperties
  *
- * @return array
+ * @return array $properties
  */
 function parse_properties($txtProperties) {
   $result             = array();
