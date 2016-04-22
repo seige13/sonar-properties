@@ -138,15 +138,22 @@ function sonar_properties_form($node, &$form_state) {
   return system_settings_form($form);
 }
 
+/**
+ *
+ * @param $node
+ * @param $form_state
+ *
+ * @return mixed
+ */
 function sonar_run_form($node, &$form_state) {
 
-  $form['sonar_version_increment'] = array(
+  /*$form['sonar_version_increment'] = array(
     '#type'          => 'textfield',
     '#title'         => t('Sonar Version Increment'),
     '#default_value' => variable_get('sonar_version_increment', '0.1'),
     '#description'   => t('The value to increment the Sonar Properties version'),
     '#required'      => TRUE,
-  );
+  );*/
 
   $form['submit'] = array(
     '#type'  => 'submit',
@@ -156,12 +163,42 @@ function sonar_run_form($node, &$form_state) {
   return $form;
 }
 
-function sonar_run_form_submit($form, &$form_state){
-  // Form above was submitted, now lets clean up $form_state['values'],
-  // that's the submitted values in an associative array.
-  form_state_values_clean($form_state);
-  // And here is the value that was submitted:
-  drupal_set_message('test');
+
+/**
+ * Increment semver and run SonarQube
+ *
+ * @param $form
+ * @param $form_state
+ *
+ */
+function sonar_run_form_submit($form, &$form_state) {
+  $currentVersion = variable_get('sonar_project_version');
+
+  // @TODO Fix so this isn't hardcoded
+  $increment  = explode('.', $currentVersion);
+  $newVersion = (int) $increment[2] + 1;
+
+  $newVersion = $increment[0] . '.' . $increment[1] . '.' . $newVersion;
+  variable_set('sonar_project_version', $newVersion);
+
+  $properties = array(
+    'sonar_host'            => variable_get('sonar_server_host'),
+    'source_encoding'       => variable_get('sonar_source_encoding'),
+    'project_key'           => variable_get('sonar_project_key'),
+    'project_name'          => variable_get('sonar_project_name'),
+    'project_base_dir'      => variable_get('sonar_base_dir'),
+    'project_version'       => variable_get('sonar_project_version'),
+    'project_sources'       => variable_get('sonar_project_sources'),
+    'project_exclusions'    => variable_get('sonar_project_exclusions'),
+    'project_profile'       => variable_get('sonar_project_profile'),
+    'properties_location'   => variable_get('sonar_properties_location'),
+    'sonar_runner_location' => variable_get('sonar_server_host')
+  );
+
+  write_properties_file($properties);
+
+
+  drupal_set_message('Success. SonarQube has been run');
 }
 
 
