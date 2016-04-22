@@ -194,15 +194,40 @@ function sonar_run_form($node, &$form_state) {
  * @param $form
  * @param $form_state
  *
+ * @return string Message
+ *
  */
 function sonar_run_form_submit($form, &$form_state) {
   $currentVersion = variable_get('sonar_project_version');
 
-  // @TODO Fix so this isn't hardcoded
-  $increment  = explode('.', $currentVersion);
-  $newVersion = (int) $increment[2] + 1;
+  $versionNumber = preg_replace('/[.]/', '', $currentVersion);
 
-  $newVersion = $increment[0] . '.' . $increment[1] . '.' . $newVersion;
+  // @TODO Fix so this isn't hardcoded
+  if (is_numeric($versionNumber)) {
+    if (strpos($currentVersion, '.') !== FALSE) {
+      $increment     = explode('.', $currentVersion);
+      $arrayKeys     = array_keys($increment);
+      $lastArrayKey  = array_pop($arrayKeys);
+      $newVersion    = '';
+      $newVersionInt = (int) $increment[$lastArrayKey] + 1;
+
+      foreach ($increment as $k => $v) {
+        if ($k == $lastArrayKey) {
+          $newVersion .= $newVersionInt;
+        }
+        else {
+          $newVersion .= $v . '.';
+        }
+      }
+    }
+    else {
+      $newVersion = $currentVersion + 1;
+    }
+  }
+  else {
+    return drupal_set_message('Error. Sonar Version is not a number', 'error');
+  }
+
   variable_set('sonar_project_version', $newVersion);
 
   $properties = array(
@@ -222,8 +247,9 @@ function sonar_run_form_submit($form, &$form_state) {
   write_properties_file($properties);
 
   // @TODO Add the sonarqube runner command here
+  shell_exec('sonar-runner');
 
-  drupal_set_message('Success. SonarQube has been run!');
+  return drupal_set_message('Success. SonarQube has been run!');
 }
 
 /**
